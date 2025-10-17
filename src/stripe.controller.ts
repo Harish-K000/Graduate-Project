@@ -39,8 +39,10 @@ export class StripeController {
         await this.svc.upsertFromCheckout(event.data.object as Stripe.Checkout.Session);
         break;
       case 'invoice.paid':
+      case 'invoice.payment_succeeded':
         await this.svc.markFromInvoice(event.data.object as Stripe.Invoice);
         break;
+      case 'customer.subscription.created':
       case 'customer.subscription.deleted':
       case 'customer.subscription.updated':
         await this.svc.syncFromSub(event.data.object as Stripe.Subscription);

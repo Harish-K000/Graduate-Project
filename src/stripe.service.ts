@@ -1,13 +1,14 @@
+import { updateManyAs } from './../node_modules/effect/src/FiberRefs';
 import {Injectable } from '@nestjs/common';
 import Stripe from 'stripe';
-import { PrismaService } from './database/prisma/prisma.service';
-
+import { PrismaService } from '../src/database/prisma/prisma.service';
+import { Subscription } from 'rxjs';
 
 
 @Injectable()
 export class StripeService {
   constructor(
-  private stripe: Stripe,
+  private readonly stripe: Stripe,
   private prisma: PrismaService,) {}
 
 
@@ -33,40 +34,95 @@ export class StripeService {
     });
   }
 
-  async markFromInvoice(inv: Stripe.Invoice) {
-    // TODO
-  //   const customerId = (inv.customer as string) ?? null;
-  //   if (!customerId) return;
+  async markFromInvoice(inv: Stripe.Invoice): Promise<void> {
+    const customerId = inv.customer as string | undefined;
+    if (!customerId) return;
 
-  //   // subscription
-  //   const subId =
-  //     typeof inv.subscription === 'string'
-  //       ? inv.subscription
-  //       : inv.subscription?.id;
+    let periodEnd: Date | undefined;
 
-  //   let end: Date | undefined;
-  //   if (subId) {
-  //     const sub = await this.stripe.subscriptions.retrieve(subId);
-  //     // `retrieve` returns Stripe.Response<Stripe.Subscription>, which
-  //     // is structurally the Subscription object. Access props directly:
-  //     if (sub.current_period_end) {
-  //       end = new Date(sub.current_period_end * 1000);
-  //     }
-  //   }else {
-  //   // fallback: use the first invoice line's period end if available
-  //   const first = inv.lines?.data?.[0];
-  //   const ts = first?.period?.end;
-  //   if (ts) end = new Date(ts * 1000);
-  // }
+    // 1️⃣ Try extracting from invoice lines first (most accurate)
+    const lines = inv.lines?.data ?? [];
+    if (lines.length > 0) {
+      const latestEndSec = Math.max(
+        ...lines
+          .map((l) => l.period?.end)
+          .filter((v): v is number => typeof v === 'number'),
+      );
+      if (Number.isFinite(latestEndSec)) {
+        periodEnd = new Date(latestEndSec * 1000);
+      }
+    }
+    function getInvoiceSubscriptionId(inv: Stripe.Invoice): string | null {
+  type InvoiceWithSub = Stripe.Invoice & {
+    subscription?: string | Stripe.Subscription | null;
+  };
 
-  //   await this.prisma.member.updateMany({
-  //     where: { stripeCustomerId: customerId },
-  //     data: { status: 'active', currentPeriodEnd: end },
-  //   });
+  const s = (inv as InvoiceWithSub).subscription;
+  return typeof s === 'string' ? s : s?.id ?? null;
+}
+    // 2️⃣ Fallback — if no period info in lines, check subscription
+    if (!periodEnd) {
+      // Safely extract subscription ID from the invoice
+      const subId = getInvoiceSubscriptionId(inv);
 
+      if (subId) {
+        const subResp = await this.stripe.subscriptions.retrieve(subId);
+
+        // Stripe typings may wrap in Response<T>, so we use a loose cast
+        const sub = subResp as any;
+        const endSec = sub?.current_period_end as number | undefined;
+
+        if (typeof endSec === 'number') {
+          periodEnd = new Date(endSec * 1000);
+        }
+      }
+    }
+
+    // 3️⃣ Update your Member record in the DB
+    await this.prisma.member.updateMany({
+      where: { stripeCustomerId: customerId },
+      data: {
+        status: 'active',
+        currentPeriodEnd: periodEnd ?? null,
+      },
+    });
+
+  await this.prisma.member.updateMany({
+    where: { stripeCustomerId: customerId },
+    data: {
+      status: 'active',
+      currentPeriodEnd: periodEnd ?? null,
+    },
+  });
+  }
+  
+  async syncFromSub(sub: Stripe.Subscription) {
+    // Normalize customer id
+    const customerId = (typeof sub.customer === 'string'? sub.customer: sub.customer?.id) ?? null;
+    if (!customerId) return;
+    
+    const subAny = sub as any;
+    const periodEnd = subAny.current_period_end? new Date(subAny.current_period_end * 1000): undefined;
+    
+    //MAP STRIPE status to app status
+    let status: 'active' | 'canceled' | 'past_due';
+    switch (sub.status){
+      case 'active':
+      case 'trialing':
+        status = 'active';
+        break;
+      case 'past_due':
+        status = 'past_due';
+        break;
+      default:
+        status = 'canceled';
+        break;
+    }
+    await this.prisma.member.updateMany({
+    where:{stripeCustomerId: customerId},
+    data: {status, currentPeriodEnd: periodEnd ?? null},
+  });
   }
 
-  async syncFromSub(_sub: Stripe.Subscription) {
-    // TODO
-  }
+  
 }
