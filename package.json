@@ -30,7 +30,7 @@
     "pino-http": "^10.5.0",
     "prisma": "^6.16.2",
     "reflect-metadata": "^0.1.14",
-    "rxjs": "^7.8.1",
+    "rxjs": "^6.6.7",
     "stripe": "^19.1.0"
   },
   "devDependencies": {
