@@ -1,5 +1,7 @@
+// @ts-nocheck
 import { Test, TestingModule } from '@nestjs/testing';
 import { StripeController } from './stripe.controller';
+import { beforeEach, describe, it,} from 'node:test';
 
 describe('StripeController', () => {
   let controller: StripeController;
@@ -16,3 +18,5 @@ describe('StripeController', () => {
     expect(controller).toBeDefined();
   });
 });
+
+

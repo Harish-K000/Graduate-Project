@@ -11,12 +11,13 @@ async function bootstrap() {
   });
 
   // Use raw parser ONLY for the Stripe webhook endpoint
-  app.use('/stripe/webhook',
-    express.raw({ type: 'application/json' }),
-    (req, _res, next) => {
-      (req as any).rawBody = (req as any).body;
-      next();
-    },
+  app.use(
+  '/stripe/webhook',
+  express.raw({ type: 'application/json' }),
+  (req: Request & { rawBody?: Buffer }, _res: Response, next: express.NextFunction) => {
+    req.rawBody = req.body as unknown as Buffer;
+    next();
+  },
   );
 
   // JSON parser for everthing else

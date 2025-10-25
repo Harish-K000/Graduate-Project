@@ -1,6 +1,7 @@
+// @ts-nocheck
 import { Test, TestingModule } from '@nestjs/testing';
 import { StripeService } from './stripe.service';
-
+import { beforeEach, describe, it } from 'node:test';
 describe('StripeService', () => {
   let service: StripeService;
 
@@ -16,3 +17,5 @@ describe('StripeService', () => {
     expect(service).toBeDefined();
   });
 });
+
+

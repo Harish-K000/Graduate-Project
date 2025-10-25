@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UsePipes, ValidationPipe } from '@nestjs/common';
 import { MembersService } from './members.service';
 
 import { CreateMember } from './dto/create-member/create-member';
@@ -17,4 +17,10 @@ export class MembersController {
     create(@Body() body: CreateMember){
         return this.members.create(body.email);
     }
+
+    @Get(':email')
+    getOne (@Param('email') email:string){
+        return this.members.findByEmail(email)
+    }
+
 }

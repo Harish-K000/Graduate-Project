@@ -1,8 +1,6 @@
-import { updateManyAs } from './../node_modules/effect/src/FiberRefs';
-import {Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import Stripe from 'stripe';
-import { PrismaService } from '../src/database/prisma/prisma.service';
-import { Subscription } from 'rxjs';
+import { PrismaService } from './database/prisma/prisma.service';
 
 
 @Injectable()
@@ -16,22 +14,73 @@ export class StripeService {
     // TODO: connect Prisma and persist member/sub info
     const email = session.customer_details?.email;
     if (!email) return;
+    
+    // GET customerId and subscriptionId
+    const customerId = (typeof session.customer === 'string'
+      ? session.customer
+      :session.customer?.id) ?? null;
 
-    const customerId = session.customer as string | null;
-    const subId = session.subscription as string | null;
+    const subId = (typeof session.subscription === 'string'
+      ? session.subscription
+      : (session.subscription as any)?.id) ?? null;
+    
+    // Fetch subscription details
+    let priceId: string | undefined;
+    let intervalMonths: number | undefined;
+    let planLabel: string | undefined;
+    let currentPeriodEnd: Date | undefined;
 
-    await this.prisma.member.upsert({
-      where: {email},
-      update: {stripeCustomerId: customerId ?? undefined, 
-        stripeSubId: subId ?? undefined, 
-        status:'active'},
-      create: {
-        email,
-        stripeCustomerId: customerId ?? undefined,
-        stripeSubId: subId ?? undefined,
-        status:'active'
-      },
+    if(subId){
+      const sub: any = await this.stripe.subscriptions.retrieve(subId);
+
+      if(sub?.current_period_end) {
+        currentPeriodEnd = new Date(sub.current_period_end * 1000);
+      }
+
+      const price = sub.items?.data?.[0]?.price;
+      if(price){
+        priceId = price.id;
+        const intervalCount = price.recurring?.interval_count ?? 1;
+        intervalMonths = price.recurring?.interval === 'month'? intervalCount : undefined;
+        planLabel= intervalMonths ? `${intervalMonths}-month` : 'custom';
+      } 
+    }else {
+    // One-time payment checkout (no subscription)
+    // Try to read the price from the session’s line items
+    const fullSession: any = await this.stripe.checkout.sessions.retrieve(session.id, {
+      expand: ['line_items.data.price'],
     });
+    const price = fullSession?.line_items?.data?.[0]?.price;
+    if (price) {
+      priceId = price.id;
+      const count = price.recurring?.interval_count ?? 1;
+      intervalMonths = price.recurring?.interval === 'month' ? count : undefined;
+      planLabel = intervalMonths ? `${intervalMonths}-month` : 'one-time';
+      // no subscription → no currentPeriodEnd
+    }
+  }
+    await this.prisma.member.upsert({
+    where: { email },
+    update: {
+      stripeCustomerId: customerId ?? undefined,
+      stripeSubId: subId ?? undefined,
+      stripePriceId: priceId,
+      intervalMonths,   // 👈 use your current field name
+      planLabel,          // 👈 use your current field name
+      currentPeriodEnd,
+      status: 'active',
+    },
+    create: {
+      email,
+      stripeCustomerId: customerId ?? undefined,
+      stripeSubId: subId ?? undefined,
+      stripePriceId: priceId,
+      intervalMonths,   // 👈 use your current field name
+      planLabel,            // 👈 use your current field name
+      currentPeriodEnd,
+      status: 'active',
+    },
+  });
   }
 
   async markFromInvoice(inv: Stripe.Invoice): Promise<void> {
@@ -40,7 +89,7 @@ export class StripeService {
 
     let periodEnd: Date | undefined;
 
-    // 1️⃣ Try extracting from invoice lines first (most accurate)
+    // Try extracting from invoice lines first (most accurate)
     const lines = inv.lines?.data ?? [];
     if (lines.length > 0) {
       const latestEndSec = Math.max(
@@ -60,7 +109,7 @@ export class StripeService {
   const s = (inv as InvoiceWithSub).subscription;
   return typeof s === 'string' ? s : s?.id ?? null;
 }
-    // 2️⃣ Fallback — if no period info in lines, check subscription
+    // Fallback — if no period info in lines, check subscription
     if (!periodEnd) {
       // Safely extract subscription ID from the invoice
       const subId = getInvoiceSubscriptionId(inv);
@@ -78,7 +127,7 @@ export class StripeService {
       }
     }
 
-    // 3️⃣ Update your Member record in the DB
+    // Update your Member record in the DB
     await this.prisma.member.updateMany({
       where: { stripeCustomerId: customerId },
       data: {
@@ -86,14 +135,6 @@ export class StripeService {
         currentPeriodEnd: periodEnd ?? null,
       },
     });
-
-  await this.prisma.member.updateMany({
-    where: { stripeCustomerId: customerId },
-    data: {
-      status: 'active',
-      currentPeriodEnd: periodEnd ?? null,
-    },
-  });
   }
   
   async syncFromSub(sub: Stripe.Subscription) {

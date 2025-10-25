@@ -16,13 +16,16 @@ model User {
 }
 
 model Member {
-  id                String   @id @default(cuid())
-  email             String   @unique
-  stripeCustomerId  String?  @unique
-  stripeSubId       String?  @unique
-  status            String   @default("active") // active | canceled | past_due
-  registeredAt      DateTime @default(now())    // << date registered
-  currentPeriodEnd  DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id               String    @id @default(cuid())
+  email            String    @unique
+  stripeCustomerId String?   @unique
+  stripeSubId      String?   @unique
+  status           String    @default("active") // active | canceled | past_due
+  registeredAt     DateTime  @default(now()) // << date registered
+  currentPeriodEnd DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  stripePriceId    String?
+  planLabel       String?
+  intervalMonths    Int?
 }

@@ -18,4 +18,10 @@ export class MembersService {
             data: {email},
         });
     }
+
+    findByEmail(email: string){
+        return this.prisma.member.findUnique({
+            where: {email}
+        });
+    }
 }
