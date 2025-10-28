@@ -34,7 +34,7 @@ async function bootstrap() {
   
   app.useGlobalFilters(new PrismaExceptionFilter());
   // If you add global pipes/middlewares later, keep them AFTER the raw parser line above
-  await app.listen(process.env.PORT ? Number(process.env.PORT) : 3001);
+  await app.listen(process.env.PORT ? Number(process.env.PORT) : 8080, '0.0.0.0');
   console.log(`listening on port 3001 right =>`);
   
 }
