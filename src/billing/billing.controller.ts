@@ -58,7 +58,7 @@ export class BillingController {
       cancel_url:
         this.cfg.get<string>('CANCEL_URL') ?? 'http://localhost:3001/health',
     });
-
+    
     return { id: session.id, url: session.url };
     }
 }

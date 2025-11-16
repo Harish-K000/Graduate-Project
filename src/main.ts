@@ -9,7 +9,11 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, { 
     bodyParser: false,
   });
-
+  app.enableCors({
+  origin: [/^http:\/\/localhost:\d+$/], // allow localhost dev ports
+  methods: ['GET','POST','OPTIONS'],
+  credentials: true,
+});
   // Use raw parser ONLY for the Stripe webhook endpoint
   app.use(
   '/stripe/webhook',
@@ -34,9 +38,10 @@ async function bootstrap() {
   
   app.useGlobalFilters(new PrismaExceptionFilter());
   // If you add global pipes/middlewares later, keep them AFTER the raw parser line above
-  await app.listen(process.env.PORT ? Number(process.env.PORT) : 8080, '0.0.0.0');
+  //await app.listen(process.env.PORT ? Number(process.env.PORT) : 8080, '0.0.0.0');
+  await app.listen(process.env.PORT ? Number(process.env.PORT) : 3001);
   console.log(`listening on port 3001 right =>`);
-  
+
 }
 bootstrap();
 

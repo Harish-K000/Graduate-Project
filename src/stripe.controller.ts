@@ -38,8 +38,10 @@ export class StripeController {
       case 'checkout.session.completed':
         await this.svc.upsertFromCheckout(event.data.object as Stripe.Checkout.Session);
         break;
+
       case 'invoice.paid':
       case 'invoice.payment_succeeded':
+      case 'invoice_payment.paid':
         await this.svc.markFromInvoice(event.data.object as Stripe.Invoice);
         break;
       case 'customer.subscription.created':
