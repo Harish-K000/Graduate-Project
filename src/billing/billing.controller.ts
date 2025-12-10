@@ -54,9 +54,9 @@ export class BillingController {
       },
       success_url:
         this.cfg.get<string>('SUCCESS_URL') ??
-        'http://localhost:3001/health',
+        'http://localhost:3000/success',
       cancel_url:
-        this.cfg.get<string>('CANCEL_URL') ?? 'http://localhost:3001/health',
+        this.cfg.get<string>('CANCEL_URL') ?? 'http://localhost:3000/failed',
     });
     
     return { id: session.id, url: session.url };
